@@ -1,33 +1,23 @@
 package robordle.ranking
 import robordle.fact.Facts
 import fs2.concurrent.Channel
-import cats.Monad
-import cats.effect.IO
+import fs2.Stream
 final case class Ranking(subject: String, score: Double)
 
 object Ranking {
-  import cats.syntax.flatMap._
-  import cats.syntax.functor._
-  import cats.syntax.applicative._
 
-  def rank[F[_]: cats.effect.Concurrent: Monad](
-      stream: fs2.Stream[F, String],
+  def rank[F[_]: cats.effect.Concurrent](
+      stream: Stream[F, String],
       accordingTo: Facts
-  ): fs2.Stream[F, Ranking] = {
-    val rubrickBuilderState: (fs2.Stream[F, String], RubrickBuilder) =
-      (fs2.Stream.empty[F], new RubrickBuilder(accordingTo))
-
+  ): Stream[F, Ranking] = {
     stream
-      .fold(rubrickBuilderState) { case ((downStream, builder), subject) =>
-        (downStream.append(fs2.Stream(subject)), builder.accountFor(subject))
+      .fold((Stream[F, String](), new RubrickBuilder(accordingTo))) {
+        case ((downStream, builder), subject) =>
+          (downStream.append(Stream(subject)), builder.accountFor(subject))
       }
       .flatMap { case (stream, builder) =>
-        stream
-          .fold((Seq.empty[Ranking], builder.rubrick)) { case ((rankings, rubrick), subject) =>
-            val newRankings: Seq[Ranking] = rankings :+ rubrick.rankingFor(subject)
-            (newRankings.sortBy(_.score).reverse.take(10), rubrick)
-          }
-          .flatMap { case (rankings, _) => fs2.Stream.apply[F, Ranking](rankings: _*) }
+        val rubrick = builder.rubrick
+        stream.map(rubrick.rankingFor)
       }
   }
 }

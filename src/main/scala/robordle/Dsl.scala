@@ -18,15 +18,29 @@ object dsl {
 
     def thatAreCongruentWith(fact: Facts): Stream[F, String] = stream.filter(fact.matches)
 
-  extension [F[_]: Sync](stream: Stream[F, String])
-    def thenPrintAllTheOptions: Stream[F, String] = stream
-      .map(_ + "\n")
-      .through(fs2.io.stdoutLines())
+  extension [F[_]: Sync](stream: Stream[F, Ranking])
+    def thenPrintAllTheOptions: Stream[F, Ranking] = stream
+      .through(
+        _.map(_.toString + "\n")
+          .through(fs2.io.stdoutLines())
+      )
 
-  extension (stream: Stream[IO, String])
-    def rankAccordingToFrequencyWithAwarenessOf(theFacts: Facts): Stream[IO, Ranking] = {
-      Ranking.rank(stream, theFacts)
+  extension [F[_]: cats.effect.Concurrent](stream: Stream[F, String])
+    def rankAccordingToFrequency(withAwarenessOf: Facts): Stream[F, Ranking] = {
+      Ranking.rank(stream, withAwarenessOf)
     }
-    def andThenJustStop: IO[Unit] = stream.compile.drain
+
+  extension [F[_]: cats.effect.Concurrent](stream: Stream[F, Ranking])
+    def selectTheMostLikelyCandidates: Stream[F, Ranking] = {
+      stream
+        .fold((Seq.empty[Ranking])) { case (rankings, ranking) =>
+          val newRankings: Seq[Ranking] = rankings :+ ranking
+          newRankings.sortBy(_.score).reverse.take(10)
+        }
+        .flatMap(fs2.Stream.apply[F, Ranking](_*))
+
+    }
+
+  extension [T](stream: Stream[IO, T]) def andThenJustStop: IO[Unit] = stream.compile.drain
 
 }
