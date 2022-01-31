@@ -6,6 +6,7 @@ scalacOptions ++= Seq(
   "-Xfatal-warnings",
   "-deprecation",
   "-unchecked"
+  // "-source:future"
 )
 lazy val root = (project in file("."))
   .settings(

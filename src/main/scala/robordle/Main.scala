@@ -1,19 +1,21 @@
 package robordle
 
-import robordle.fact.Fact
+import robordle.fact.{Facts, Fact}
 import cats.effect.{IO, IOApp}
 
 object main extends IOApp.Simple {
-  val everythingWeKnow = Fact.All(
-    Seq(Fact.Contains("l"), Fact.Exact('u', 3), Fact.ExactNot('l', 2), Fact.Not("trnkpms"))
-  )
+  val everythingWeKnow = Facts(Seq(Fact.Not("sales")))
+  //   Seq(Fact.Contains("l"), Fact.Exact('u', 3), Fact.ExactNot('l', 2), Fact.Not("trnkpms"))
+  // )
 
   import dictionary.Dictionary
-  given Dictionary = Dictionary()
+  given Dictionary[IO] = Dictionary[IO]()
 
   import dsl._
-  val run = startWithProbablyAllOfTheEnglishWords[IO].onlyKeepTheOnesWithFiveLetters
+  val run = startWithProbablyAllOfTheEnglishWords.butOnlyTheOnesWithFiveLetters
     .thatAreCongruentWith(everythingWeKnow)
+    .rankAccordingToFrequencyWithAwarenessOf(everythingWeKnow)
+    .map(_.toString)
     .thenPrintAllTheOptions
     .andThenJustStop
 }
